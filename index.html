@@ -3,146 +3,91 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BCA Token Scanner Pro</title>
+  <title>BCA Token - Snap Reader</title>
   <style>
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0b0f14;
-      color: #fff;
-      text-align: center;
+      margin: 0; font-family: sans-serif;
+      background: #0b1118; color: #fff; text-align: center;
     }
-    .wrap {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    h1 { font-size: 22px; margin-bottom: 5px; color: #53f3c3; }
-    p { color: #8fa0b5; font-size: 14px; margin-top: 0; }
-
-    .video-container {
+    .container { max-width: 500px; margin: 0 auto; padding: 20px; }
+    h2 { color: #53f3c3; margin-bottom: 5px; }
+    
+    .camera-box {
       position: relative;
       width: 100%;
+      aspect-ratio: 1/1; /* Kotak agar lebih fokus ke area token */
+      background: #000;
       border-radius: 20px;
       overflow: hidden;
-      border: 2px solid #263244;
-      background: #000;
-      aspect-ratio: 4/3;
+      border: 2px solid #243041;
     }
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    /* Overlay Kotak Scan */
-    .scan-overlay {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      display: flex; justify-content: center; align-items: center;
-      pointer-events: none;
-    }
-    .scan-guide {
-      width: 70%;
-      height: 15%;
-      border: 3px solid #53f3c3;
-      border-radius: 10px;
-      box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.5);
-      position: relative;
-    }
-    .scan-guide::after {
-      content: "POSISIKAN ANGKA DI SINI";
-      position: absolute;
-      top: -25px;
-      left: 0;
-      width: 100%;
-      font-size: 10px;
-      font-weight: bold;
-      color: #53f3c3;
-    }
-
-    .result-panel {
-      margin-top: 20px;
-      padding: 20px;
-      background: #161c27;
-      border-radius: 15px;
-      border: 1px solid #243041;
-    }
-    .token-display {
-      font-size: 48px;
-      font-weight: 800;
-      color: #53f3c3;
-      letter-spacing: 8px;
-      margin: 10px 0;
-      font-family: monospace;
-    }
-    .status-msg {
-      font-size: 13px;
-      color: #b8c2cf;
-      min-height: 18px;
-    }
-
-    .btn-group {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-    }
-    button {
-      flex: 1;
-      padding: 15px;
-      border: none;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    .btn-start { background: #53f3c3; color: #082019; }
-    .btn-stop { background: #263244; color: #fff; }
+    video { width: 100%; height: 100%; object-fit: cover; }
     
-    /* Debug Canvas: Menyembunyikan canvas asli, tapi menampilkan preview kecil */
-    canvas { display: none; }
-    .preview-box {
-      margin-top: 15px;
-      border-top: 1px solid #243041;
-      padding-top: 10px;
+    /* Overlay Garis Bidik */
+    .reticle {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%; height: 60px;
+      border: 2px dashed #53f3c3;
+      border-radius: 8px;
+      box-shadow: 0 0 0 1000px rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center;
     }
+    .reticle::after {
+      content: "TEMPATKAN ANGKA DI SINI";
+      font-size: 10px; color: #53f3c3; letter-spacing: 1px;
+    }
+
+    .result-section {
+      margin-top: 20px; padding: 15px;
+      background: #161c27; border-radius: 15px;
+    }
+    #tokenValue {
+      font-size: 50px; font-weight: bold; color: #53f3c3;
+      margin: 10px 0; letter-spacing: 5px;
+    }
+    
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+    button {
+      padding: 15px; border: none; border-radius: 12px;
+      font-weight: bold; cursor: pointer; font-size: 14px;
+    }
+    .btn-snap { background: #53f3c3; color: #082019; grid-column: span 2; font-size: 18px; }
+    .btn-cam { background: #263244; color: #fff; }
+    
     #previewCanvas {
-      display: block;
-      margin: 10px auto;
-      max-width: 100%;
-      height: auto;
-      border: 1px solid #53f3c3;
-      filter: grayscale(1); /* Tampilan visual saja */
+      width: 100%; margin-top: 15px; border-radius: 10px;
+      border: 1px solid #333; display: none;
     }
+    .status { font-size: 13px; color: #8fa0b5; margin-top: 10px; min-height: 1.5em; }
+    
+    /* Animasi saat memproses */
+    .loading { opacity: 0.5; pointer-events: none; }
   </style>
 </head>
 <body>
 
-<div class="wrap">
-  <h1>BCA Token Scanner</h1>
-  <p>Otomatis deteksi & kirim ke Google Sheets</p>
+<div class="container" id="mainApp">
+  <h2>Token Reader</h2>
+  <p style="font-size: 12px; color: #8fa0b5;">Arahkan, pastikan fokus, lalu klik Ambil Foto</p>
 
-  <div class="video-container">
+  <div class="camera-box">
     <video id="video" autoplay playsinline muted></video>
-    <div class="scan-overlay">
-      <div class="scan-guide"></div>
-    </div>
+    <div class="reticle"></div>
   </div>
 
-  <div class="result-panel">
-    <div style="font-size: 12px; color: #8fa0b5;">HASIL SCAN TERAKHIR</div>
-    <div class="token-display" id="tokenOutput">------</div>
-    <div class="status-msg" id="statusLabel">Kamera belum aktif</div>
+  <div class="result-section">
+    <div id="tokenValue">------</div>
+    <div class="status" id="statusMsg">Kamera Standby</div>
 
-    <div class="btn-group">
-      <button class="btn-start" id="btnStart">MULAI SCAN</button>
-      <button class="btn-stop" id="btnStop">STOP</button>
-    </div>
+    <canvas id="previewCanvas"></canvas>
 
-    <div class="preview-box">
-      <div style="font-size: 11px; color: #53f3c3;">PREVIEW OCR (Binary)</div>
-      <canvas id="previewCanvas"></canvas>
+    <div class="controls">
+      <button class="btn-snap" id="btnSnap">📸 AMBIL FOTO TOKEN</button>
+      <button class="btn-cam" id="btnToggle">BUKA KAMERA</button>
+      <button class="btn-cam" style="background:#442626;" onclick="location.reload()">RELOAD</button>
     </div>
   </div>
 </div>
@@ -150,148 +95,118 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <script>
-  // --- KONFIGURASI ---
-  const CONFIG = {
-    gasUrl: "https://script.google.com/macros/s/AKfycbyBz-zQapdFxePExHItSlbuk83fASmvlQFvXr4xnyG0WcAmMIiYQee1brq3QstFnUkN/exec",
-    scanInterval: 1500, // Kecepatan scan (ms)
-    thresholdValue: 125, // Sensitivitas cahaya (0-255)
-    upscale: 3 // Perbesaran gambar untuk OCR
-  };
-
   const video = document.getElementById('video');
-  const previewCanvas = document.getElementById('previewCanvas');
-  const tokenOutput = document.getElementById('tokenOutput');
-  const statusLabel = document.getElementById('statusLabel');
-  
-  let streamRef = null;
-  let timer = null;
-  let isProcessing = false;
-  let lastToken = "";
+  const canvas = document.getElementById('previewCanvas');
+  const tokenValue = document.getElementById('tokenValue');
+  const statusMsg = document.getElementById('statusMsg');
+  const btnSnap = document.getElementById('btnSnap');
+  const mainApp = document.getElementById('mainApp');
 
-  async function initCamera() {
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbyBz-zQapdFxePExHItSlbuk83fASmvlQFvXr4xnyG0WcAmMIiYQee1brq3QstFnUkN/exec";
+  let streamRef = null;
+
+  // 1. Mulai Kamera
+  async function startCamera() {
     try {
-      statusLabel.textContent = "Membuka kamera...";
+      statusMsg.textContent = "Menghubungkan kamera...";
       streamRef = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          focusMode: "continuous" // Jika didukung browser
-        }
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
       });
       video.srcObject = streamRef;
-      statusLabel.textContent = "Mencari angka token...";
-      
-      // Tunggu video ready
-      video.onloadedmetadata = () => {
-        timer = setInterval(captureAndScan, CONFIG.scanInterval);
-      };
+      statusMsg.textContent = "Kamera Siap.";
     } catch (err) {
-      statusLabel.textContent = "Error: " + err.message;
+      statusMsg.textContent = "Gagal akses kamera: " + err.message;
     }
   }
 
-  function stopCamera() {
-    clearInterval(timer);
-    if (streamRef) {
-      streamRef.getTracks().forEach(t => t.stop());
-    }
-    video.srcObject = null;
-    statusLabel.textContent = "Kamera dimatikan";
-  }
+  // 2. Ambil Foto & Olah Gambar
+  async function takeSnap() {
+    if (!streamRef) return alert("Buka kamera dulu!");
 
-  function processImage(sourceCanvas) {
-    const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
+    mainApp.classList.add('loading');
+    statusMsg.textContent = "Mengambil gambar & memproses...";
+    tokenValue.textContent = "......";
+
+    const ctx = canvas.getContext('2d');
     
-    // Set ukuran preview berdasarkan kotak guide (kira-kira)
-    const sw = sourceCanvas.width * 0.7; 
-    const sh = sourceCanvas.height * 0.15;
-    const sx = (sourceCanvas.width - sw) / 2;
-    const sy = (sourceCanvas.height - sh) / 2;
+    // Ukuran asli video
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
 
-    previewCanvas.width = sw * CONFIG.upscale;
-    previewCanvas.height = sh * CONFIG.upscale;
+    // Hitung area crop (sesuai kotak reticle)
+    const cropW = vw * 0.8;
+    const cropH = vh * 0.15; // Area baris angka saja
+    const cropX = (vw - cropW) / 2;
+    const cropY = (vh - cropH) / 2;
 
-    // Gambar ke canvas preview dengan upscale
+    // Perbesar hasil crop agar Tesseract mudah baca (Upscale 4x)
+    canvas.width = cropW * 4;
+    canvas.height = cropH * 4;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, previewCanvas.width, previewCanvas.height);
+    
+    // Gambar ke canvas
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
 
-    // Manipulasi Pixel (Binarization)
-    const imgData = ctx.getImageData(0, 0, previewCanvas.width, previewCanvas.height);
-    const data = imgData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      // Rumus Grayscale Luma
-      const brightness = 0.34 * data[i] + 0.5 * data[i + 1] + 0.16 * data[i + 2];
-      const v = brightness > CONFIG.thresholdValue ? 255 : 0;
-      data[i] = data[i+1] = data[i+2] = v;
+    // Binarization (Hitam Putih Tajam)
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imgData.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const avg = (pixels[i] + pixels[i+1] + pixels[i+2]) / 3;
+      const v = avg > 115 ? 255 : 0; // Atur 115 jika kurang kontras
+      pixels[i] = pixels[i+1] = pixels[i+2] = v;
     }
     ctx.putImageData(imgData, 0, 0);
+    
+    canvas.style.display = "block"; // Tampilkan hasil foto yang diproses
+
+    runOCR();
   }
 
-  async function captureAndScan() {
-    if (isProcessing || !video.videoWidth) return;
-    isProcessing = true;
-
-    // Buat canvas sementara untuk capture frame video
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = video.videoWidth;
-    tempCanvas.height = video.videoHeight;
-    tempCanvas.getContext('2d').drawImage(video, 0, 0);
-
-    // Proses gambar agar hitam putih tajam
-    processImage(tempCanvas);
-
+  // 3. Jalankan OCR
+  async function runOCR() {
     try {
-      const { data: { text } } = await Tesseract.recognize(previewCanvas, 'eng', {
+      const result = await Tesseract.recognize(canvas, 'eng', {
         tessedit_char_whitelist: '0123456789',
-        tessedit_pageseg_mode: '7' // Perlakukan sebagai satu baris teks
+        tessedit_pageseg_mode: '7'
       });
 
-      const cleanDigits = text.replace(/\D/g, '').substring(0, 6);
+      const digits = result.data.text.replace(/\D/g, '').substring(0, 6);
 
-      if (cleanDigits.length === 6) {
-        tokenOutput.textContent = cleanDigits;
-        
-        if (cleanDigits !== lastToken) {
-          sendToSheets(cleanDigits);
-        } else {
-          statusLabel.textContent = "Token sama terdeteksi (skip)";
-        }
+      if (digits.length === 6) {
+        tokenValue.textContent = digits;
+        sendData(digits);
       } else {
-        statusLabel.textContent = "Mencoba membaca...";
+        tokenValue.textContent = "FAIL";
+        statusMsg.textContent = "Angka kurang jelas, coba lagi.";
+        mainApp.classList.remove('loading');
       }
     } catch (e) {
-      console.error(e);
-    } finally {
-      isProcessing = false;
+      statusMsg.textContent = "OCR Error.";
+      mainApp.classList.remove('loading');
     }
   }
 
-  async function sendToSheets(token) {
-    statusLabel.textContent = "Mengirim " + token + "...";
+  // 4. Kirim ke Google Sheets
+  async function sendData(token) {
+    statusMsg.textContent = "Mengirim " + token + "...";
     try {
-      const response = await fetch(CONFIG.gasUrl, {
+      await fetch(GAS_URL, {
         method: "POST",
-        mode: "no-cors", // Penting untuk menghindari error CORS pada GAS
+        mode: "no-cors",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "token=" + token
       });
-      
-      lastToken = token;
-      statusLabel.textContent = "BERHASIL DIKIRIM: " + token;
-      
-      // Haptic feedback jika di HP
-      if (navigator.vibrate) navigator.vibrate(100);
-      
+      statusMsg.textContent = "BERHASIL DIKIRIM!";
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     } catch (err) {
-      statusLabel.textContent = "Gagal kirim data.";
+      statusMsg.textContent = "Gagal kirim ke Sheets.";
     }
+    mainApp.classList.remove('loading');
   }
 
-  document.getElementById('btnStart').addEventListener('click', initCamera);
-  document.getElementById('btnStop').addEventListener('click', stopCamera);
-
+  btnToggle.addEventListener('click', startCamera);
+  btnSnap.addEventListener('click', takeSnap);
 </script>
+
 </body>
 </html>
