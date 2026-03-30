@@ -14,23 +14,41 @@
       text-align: center;
     }
     .wrap {
-      max-width: 720px;
+      max-width: 760px;
       margin: 0 auto;
       padding: 16px;
     }
     h1 {
+      margin: 8px 0;
       font-size: 24px;
-      margin: 10px 0 6px;
     }
     p {
+      color: #b8c2cf;
       margin: 0 0 12px;
-      color: #b9c2cf;
+    }
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #263244;
+      background: #111;
     }
     video {
       width: 100%;
-      border-radius: 14px;
+      display: block;
       background: #111;
-      border: 1px solid #243041;
+    }
+    .scan-box {
+      position: absolute;
+      left: 20%;
+      top: 38%;
+      width: 60%;
+      height: 14%;
+      border: 3px solid #53f3c3;
+      border-radius: 12px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.30);
+      pointer-events: none;
     }
     .panel {
       margin-top: 14px;
@@ -40,21 +58,21 @@
       border: 1px solid #243041;
     }
     .token {
-      font-size: 34px;
+      font-size: 38px;
       font-weight: 700;
-      letter-spacing: 3px;
+      letter-spacing: 4px;
       color: #53f3c3;
-      margin: 8px 0;
+      margin: 10px 0;
     }
     .status {
+      min-height: 22px;
+      color: #d0d7e2;
       font-size: 14px;
-      color: #c5d0de;
-      min-height: 20px;
     }
     .btns {
       display: flex;
-      gap: 10px;
       justify-content: center;
+      gap: 10px;
       flex-wrap: wrap;
       margin-top: 12px;
     }
@@ -65,23 +83,48 @@
       font-size: 16px;
       cursor: pointer;
     }
-    .primary { background: #53f3c3; color: #082019; font-weight: 700; }
-    .secondary { background: #263244; color: #fff; }
-    canvas { display: none; }
+    .primary {
+      background: #53f3c3;
+      color: #082019;
+      font-weight: 700;
+    }
+    .secondary {
+      background: #263244;
+      color: #fff;
+    }
+    canvas {
+      display: none;
+    }
     .hint {
-      margin-top: 10px;
-      font-size: 13px;
+      margin-top: 8px;
       color: #8fa0b5;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .preview {
+      margin-top: 12px;
+    }
+    #debugCanvas {
+      width: 100%;
+      max-width: 500px;
+      border: 1px solid #263244;
+      border-radius: 12px;
+      background: #fff;
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Scan Token BCA</h1>
-    <p>Arahkan kamera ke angka token. Tidak perlu foto.</p>
+    <p>Posisikan angka token tepat di dalam kotak hijau.</p>
 
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="scan-box"></div>
+    </div>
+
+    <canvas id="workCanvas"></canvas>
+    <canvas id="debugCanvas"></canvas>
 
     <div class="panel">
       <div>Hasil token</div>
@@ -94,18 +137,25 @@
       </div>
 
       <div class="hint">
-        Tips: dekatkan ke token, jangan goyang, fokuskan hanya area angka.
+        Taruh token di kotak hijau, dekatkan 10–15 cm, hindari pantulan cahaya, dan usahakan hanya angka yang terlihat.
+      </div>
+
+      <div class="preview">
+        <div style="margin-bottom:8px;color:#b8c2cf;">Preview OCR</div>
+        <canvas id="previewCanvas"></canvas>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
-    // GANTI DENGAN URL WEB APP APPS SCRIPT KAMU
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyBz-zQapdFxePExHItSlbuk83fASmvlQFvXr4xnyG0WcAmMIiYQee1brq3QstFnUkN/exec";
 
     const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
+    const workCanvas = document.getElementById("workCanvas");
+    const debugCanvas = document.getElementById("debugCanvas");
+    const previewCanvas = document.getElementById("previewCanvas");
+
     const tokenText = document.getElementById("tokenText");
     const statusText = document.getElementById("statusText");
     const startBtn = document.getElementById("startBtn");
@@ -124,8 +174,8 @@
         streamRef = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
           },
           audio: false
         });
@@ -133,9 +183,9 @@
         video.srcObject = streamRef;
         await video.play();
 
-        statusText.textContent = "Kamera aktif. Arahkan ke token.";
+        statusText.textContent = "Kamera aktif. Arahkan token ke kotak hijau.";
         clearInterval(scanTimer);
-        scanTimer = setInterval(scanLoop, 1400);
+        scanTimer = setInterval(scanLoop, 1800);
       } catch (err) {
         statusText.textContent = "Gagal akses kamera: " + err.message;
         console.error(err);
@@ -155,6 +205,41 @@
       statusText.textContent = "Kamera dihentikan.";
     }
 
+    function preprocessImage(srcCanvas, dstCanvas) {
+      const sctx = srcCanvas.getContext("2d");
+      const dctx = dstCanvas.getContext("2d");
+
+      const sw = srcCanvas.width;
+      const sh = srcCanvas.height;
+
+      // upscale 2x biar angka lebih besar
+      dstCanvas.width = sw * 2;
+      dstCanvas.height = sh * 2;
+
+      dctx.drawImage(srcCanvas, 0, 0, dstCanvas.width, dstCanvas.height);
+
+      const img = dctx.getImageData(0, 0, dstCanvas.width, dstCanvas.height);
+      const data = img.data;
+
+      // grayscale + threshold
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        // threshold
+        const v = gray > 140 ? 255 : 0;
+
+        data[i] = v;
+        data[i + 1] = v;
+        data[i + 2] = v;
+      }
+
+      dctx.putImageData(img, 0, 0);
+    }
+
     async function scanLoop() {
       if (isBusy) return;
       if (!video.videoWidth || !video.videoHeight) return;
@@ -162,24 +247,26 @@
       isBusy = true;
 
       try {
-        const ctx = canvas.getContext("2d");
-
-        // Crop tengah layar agar OCR lebih fokus
         const vw = video.videoWidth;
         const vh = video.videoHeight;
 
-        const cropW = Math.floor(vw * 0.7);
-        const cropH = Math.floor(vh * 0.25);
-        const cropX = Math.floor((vw - cropW) / 2);
-        const cropY = Math.floor((vh - cropH) / 2);
+        // area sesuai kotak hijau
+        const cropX = Math.floor(vw * 0.20);
+        const cropY = Math.floor(vh * 0.38);
+        const cropW = Math.floor(vw * 0.60);
+        const cropH = Math.floor(vh * 0.14);
 
-        canvas.width = cropW;
-        canvas.height = cropH;
+        workCanvas.width = cropW;
+        workCanvas.height = cropH;
 
-        ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        const wctx = workCanvas.getContext("2d");
+        wctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-        const result = await Tesseract.recognize(canvas, "eng", {
-          logger: () => {}
+        preprocessImage(workCanvas, previewCanvas);
+
+        const result = await Tesseract.recognize(previewCanvas, "eng", {
+          tessedit_char_whitelist: "0123456789",
+          preserve_interword_spaces: "0"
         });
 
         const rawText = (result.data.text || "").trim();
@@ -190,9 +277,9 @@
           tokenText.textContent = token;
 
           const now = Date.now();
-          const isSameRecent = token === lastToken && (now - lastSentAt < 10000);
+          const sameRecent = token === lastToken && (now - lastSentAt < 10000);
 
-          if (!isSameRecent) {
+          if (!sameRecent) {
             statusText.textContent = "Mengirim token " + token + "...";
 
             const body = new URLSearchParams({ token }).toString();
@@ -218,7 +305,8 @@
             statusText.textContent = "Token sama, diabaikan.";
           }
         } else {
-          statusText.textContent = "Mencari token...";
+          tokenText.textContent = "------";
+          statusText.textContent = "Token belum terbaca";
         }
       } catch (err) {
         statusText.textContent = "Error scan: " + err.message;
