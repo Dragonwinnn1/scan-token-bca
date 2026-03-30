@@ -3,321 +3,295 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scan Token BCA</title>
+  <title>BCA Token Scanner Pro</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background: #0b0f14;
       color: #fff;
       text-align: center;
     }
     .wrap {
-      max-width: 760px;
+      max-width: 600px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 20px;
     }
-    h1 {
-      margin: 8px 0;
-      font-size: 24px;
-    }
-    p {
-      color: #b8c2cf;
-      margin: 0 0 12px;
-    }
-    .video-wrap {
+    h1 { font-size: 22px; margin-bottom: 5px; color: #53f3c3; }
+    p { color: #8fa0b5; font-size: 14px; margin-top: 0; }
+
+    .video-container {
       position: relative;
       width: 100%;
-      border-radius: 16px;
+      border-radius: 20px;
       overflow: hidden;
-      border: 1px solid #263244;
-      background: #111;
+      border: 2px solid #263244;
+      background: #000;
+      aspect-ratio: 4/3;
     }
     video {
       width: 100%;
-      display: block;
-      background: #111;
+      height: 100%;
+      object-fit: cover;
     }
-    .scan-box {
+    /* Overlay Kotak Scan */
+    .scan-overlay {
       position: absolute;
-      left: 20%;
-      top: 38%;
-      width: 60%;
-      height: 14%;
-      border: 3px solid #53f3c3;
-      border-radius: 12px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.30);
+      top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; justify-content: center; align-items: center;
       pointer-events: none;
     }
-    .panel {
-      margin-top: 14px;
-      padding: 14px;
-      border-radius: 14px;
-      background: #111826;
+    .scan-guide {
+      width: 70%;
+      height: 15%;
+      border: 3px solid #53f3c3;
+      border-radius: 10px;
+      box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+    .scan-guide::after {
+      content: "POSISIKAN ANGKA DI SINI";
+      position: absolute;
+      top: -25px;
+      left: 0;
+      width: 100%;
+      font-size: 10px;
+      font-weight: bold;
+      color: #53f3c3;
+    }
+
+    .result-panel {
+      margin-top: 20px;
+      padding: 20px;
+      background: #161c27;
+      border-radius: 15px;
       border: 1px solid #243041;
     }
-    .token {
-      font-size: 38px;
-      font-weight: 700;
-      letter-spacing: 4px;
+    .token-display {
+      font-size: 48px;
+      font-weight: 800;
       color: #53f3c3;
+      letter-spacing: 8px;
       margin: 10px 0;
+      font-family: monospace;
     }
-    .status {
-      min-height: 22px;
-      color: #d0d7e2;
-      font-size: 14px;
+    .status-msg {
+      font-size: 13px;
+      color: #b8c2cf;
+      min-height: 18px;
     }
-    .btns {
+
+    .btn-group {
       display: flex;
-      justify-content: center;
       gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 12px;
+      margin-top: 20px;
     }
     button {
-      border: 0;
-      border-radius: 10px;
-      padding: 12px 18px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    .primary {
-      background: #53f3c3;
-      color: #082019;
-      font-weight: 700;
-    }
-    .secondary {
-      background: #263244;
-      color: #fff;
-    }
-    canvas {
-      display: none;
-    }
-    .hint {
-      margin-top: 8px;
-      color: #8fa0b5;
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .preview {
-      margin-top: 12px;
-    }
-    #debugCanvas {
-      width: 100%;
-      max-width: 500px;
-      border: 1px solid #263244;
+      flex: 1;
+      padding: 15px;
+      border: none;
       border-radius: 12px;
-      background: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .btn-start { background: #53f3c3; color: #082019; }
+    .btn-stop { background: #263244; color: #fff; }
+    
+    /* Debug Canvas: Menyembunyikan canvas asli, tapi menampilkan preview kecil */
+    canvas { display: none; }
+    .preview-box {
+      margin-top: 15px;
+      border-top: 1px solid #243041;
+      padding-top: 10px;
+    }
+    #previewCanvas {
+      display: block;
+      margin: 10px auto;
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #53f3c3;
+      filter: grayscale(1); /* Tampilan visual saja */
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Scan Token BCA</h1>
-    <p>Posisikan angka token tepat di dalam kotak hijau.</p>
 
-    <div class="video-wrap">
-      <video id="video" autoplay playsinline muted></video>
-      <div class="scan-box"></div>
-    </div>
+<div class="wrap">
+  <h1>BCA Token Scanner</h1>
+  <p>Otomatis deteksi & kirim ke Google Sheets</p>
 
-    <canvas id="workCanvas"></canvas>
-    <canvas id="debugCanvas"></canvas>
-
-    <div class="panel">
-      <div>Hasil token</div>
-      <div class="token" id="tokenText">------</div>
-      <div class="status" id="statusText">Belum aktif</div>
-
-      <div class="btns">
-        <button class="primary" id="startBtn">Aktifkan Kamera</button>
-        <button class="secondary" id="stopBtn">Stop</button>
-      </div>
-
-      <div class="hint">
-        Taruh token di kotak hijau, dekatkan 10–15 cm, hindari pantulan cahaya, dan usahakan hanya angka yang terlihat.
-      </div>
-
-      <div class="preview">
-        <div style="margin-bottom:8px;color:#b8c2cf;">Preview OCR</div>
-        <canvas id="previewCanvas"></canvas>
-      </div>
+  <div class="video-container">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="scan-overlay">
+      <div class="scan-guide"></div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyBz-zQapdFxePExHItSlbuk83fASmvlQFvXr4xnyG0WcAmMIiYQee1brq3QstFnUkN/exec";
+  <div class="result-panel">
+    <div style="font-size: 12px; color: #8fa0b5;">HASIL SCAN TERAKHIR</div>
+    <div class="token-display" id="tokenOutput">------</div>
+    <div class="status-msg" id="statusLabel">Kamera belum aktif</div>
 
-    const video = document.getElementById("video");
-    const workCanvas = document.getElementById("workCanvas");
-    const debugCanvas = document.getElementById("debugCanvas");
-    const previewCanvas = document.getElementById("previewCanvas");
+    <div class="btn-group">
+      <button class="btn-start" id="btnStart">MULAI SCAN</button>
+      <button class="btn-stop" id="btnStop">STOP</button>
+    </div>
 
-    const tokenText = document.getElementById("tokenText");
-    const statusText = document.getElementById("statusText");
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
+    <div class="preview-box">
+      <div style="font-size: 11px; color: #53f3c3;">PREVIEW OCR (Binary)</div>
+      <canvas id="previewCanvas"></canvas>
+    </div>
+  </div>
+</div>
 
-    let streamRef = null;
-    let scanTimer = null;
-    let isBusy = false;
-    let lastToken = "";
-    let lastSentAt = 0;
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-    async function startCamera() {
-      try {
-        statusText.textContent = "Meminta izin kamera...";
+<script>
+  // --- KONFIGURASI ---
+  const CONFIG = {
+    gasUrl: "https://script.google.com/macros/s/AKfycbyBz-zQapdFxePExHItSlbuk83fASmvlQFvXr4xnyG0WcAmMIiYQee1brq3QstFnUkN/exec",
+    scanInterval: 1500, // Kecepatan scan (ms)
+    thresholdValue: 125, // Sensitivitas cahaya (0-255)
+    upscale: 3 // Perbesaran gambar untuk OCR
+  };
 
-        streamRef = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false
-        });
+  const video = document.getElementById('video');
+  const previewCanvas = document.getElementById('previewCanvas');
+  const tokenOutput = document.getElementById('tokenOutput');
+  const statusLabel = document.getElementById('statusLabel');
+  
+  let streamRef = null;
+  let timer = null;
+  let isProcessing = false;
+  let lastToken = "";
 
-        video.srcObject = streamRef;
-        await video.play();
-
-        statusText.textContent = "Kamera aktif. Arahkan token ke kotak hijau.";
-        clearInterval(scanTimer);
-        scanTimer = setInterval(scanLoop, 1800);
-      } catch (err) {
-        statusText.textContent = "Gagal akses kamera: " + err.message;
-        console.error(err);
-      }
-    }
-
-    function stopCamera() {
-      clearInterval(scanTimer);
-      scanTimer = null;
-
-      if (streamRef) {
-        streamRef.getTracks().forEach(track => track.stop());
-        streamRef = null;
-      }
-
-      video.srcObject = null;
-      statusText.textContent = "Kamera dihentikan.";
-    }
-
-    function preprocessImage(srcCanvas, dstCanvas) {
-      const sctx = srcCanvas.getContext("2d");
-      const dctx = dstCanvas.getContext("2d");
-
-      const sw = srcCanvas.width;
-      const sh = srcCanvas.height;
-
-      // upscale 2x biar angka lebih besar
-      dstCanvas.width = sw * 2;
-      dstCanvas.height = sh * 2;
-
-      dctx.drawImage(srcCanvas, 0, 0, dstCanvas.width, dstCanvas.height);
-
-      const img = dctx.getImageData(0, 0, dstCanvas.width, dstCanvas.height);
-      const data = img.data;
-
-      // grayscale + threshold
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        // threshold
-        const v = gray > 140 ? 255 : 0;
-
-        data[i] = v;
-        data[i + 1] = v;
-        data[i + 2] = v;
-      }
-
-      dctx.putImageData(img, 0, 0);
-    }
-
-    async function scanLoop() {
-      if (isBusy) return;
-      if (!video.videoWidth || !video.videoHeight) return;
-
-      isBusy = true;
-
-      try {
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-
-        // area sesuai kotak hijau
-        const cropX = Math.floor(vw * 0.20);
-        const cropY = Math.floor(vh * 0.38);
-        const cropW = Math.floor(vw * 0.60);
-        const cropH = Math.floor(vh * 0.14);
-
-        workCanvas.width = cropW;
-        workCanvas.height = cropH;
-
-        const wctx = workCanvas.getContext("2d");
-        wctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-        preprocessImage(workCanvas, previewCanvas);
-
-        const result = await Tesseract.recognize(previewCanvas, "eng", {
-          tessedit_char_whitelist: "0123456789",
-          preserve_interword_spaces: "0"
-        });
-
-        const rawText = (result.data.text || "").trim();
-        const digits = rawText.replace(/\D/g, "");
-
-        if (digits.length >= 6) {
-          const token = digits.substring(0, 6);
-          tokenText.textContent = token;
-
-          const now = Date.now();
-          const sameRecent = token === lastToken && (now - lastSentAt < 10000);
-
-          if (!sameRecent) {
-            statusText.textContent = "Mengirim token " + token + "...";
-
-            const body = new URLSearchParams({ token }).toString();
-
-            const res = await fetch(GAS_URL, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-              },
-              body
-            });
-
-            const json = await res.json().catch(() => ({}));
-
-            if (json.ok) {
-              lastToken = token;
-              lastSentAt = now;
-              statusText.textContent = "Tersimpan: " + token;
-            } else {
-              statusText.textContent = "Gagal simpan: " + (json.message || "Unknown error");
-            }
-          } else {
-            statusText.textContent = "Token sama, diabaikan.";
-          }
-        } else {
-          tokenText.textContent = "------";
-          statusText.textContent = "Token belum terbaca";
+  async function initCamera() {
+    try {
+      statusLabel.textContent = "Membuka kamera...";
+      streamRef = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          focusMode: "continuous" // Jika didukung browser
         }
-      } catch (err) {
-        statusText.textContent = "Error scan: " + err.message;
-        console.error(err);
-      }
-
-      isBusy = false;
+      });
+      video.srcObject = streamRef;
+      statusLabel.textContent = "Mencari angka token...";
+      
+      // Tunggu video ready
+      video.onloadedmetadata = () => {
+        timer = setInterval(captureAndScan, CONFIG.scanInterval);
+      };
+    } catch (err) {
+      statusLabel.textContent = "Error: " + err.message;
     }
+  }
 
-    startBtn.addEventListener("click", startCamera);
-    stopBtn.addEventListener("click", stopCamera);
-  </script>
+  function stopCamera() {
+    clearInterval(timer);
+    if (streamRef) {
+      streamRef.getTracks().forEach(t => t.stop());
+    }
+    video.srcObject = null;
+    statusLabel.textContent = "Kamera dimatikan";
+  }
+
+  function processImage(sourceCanvas) {
+    const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
+    
+    // Set ukuran preview berdasarkan kotak guide (kira-kira)
+    const sw = sourceCanvas.width * 0.7; 
+    const sh = sourceCanvas.height * 0.15;
+    const sx = (sourceCanvas.width - sw) / 2;
+    const sy = (sourceCanvas.height - sh) / 2;
+
+    previewCanvas.width = sw * CONFIG.upscale;
+    previewCanvas.height = sh * CONFIG.upscale;
+
+    // Gambar ke canvas preview dengan upscale
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, previewCanvas.width, previewCanvas.height);
+
+    // Manipulasi Pixel (Binarization)
+    const imgData = ctx.getImageData(0, 0, previewCanvas.width, previewCanvas.height);
+    const data = imgData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      // Rumus Grayscale Luma
+      const brightness = 0.34 * data[i] + 0.5 * data[i + 1] + 0.16 * data[i + 2];
+      const v = brightness > CONFIG.thresholdValue ? 255 : 0;
+      data[i] = data[i+1] = data[i+2] = v;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  async function captureAndScan() {
+    if (isProcessing || !video.videoWidth) return;
+    isProcessing = true;
+
+    // Buat canvas sementara untuk capture frame video
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = video.videoWidth;
+    tempCanvas.height = video.videoHeight;
+    tempCanvas.getContext('2d').drawImage(video, 0, 0);
+
+    // Proses gambar agar hitam putih tajam
+    processImage(tempCanvas);
+
+    try {
+      const { data: { text } } = await Tesseract.recognize(previewCanvas, 'eng', {
+        tessedit_char_whitelist: '0123456789',
+        tessedit_pageseg_mode: '7' // Perlakukan sebagai satu baris teks
+      });
+
+      const cleanDigits = text.replace(/\D/g, '').substring(0, 6);
+
+      if (cleanDigits.length === 6) {
+        tokenOutput.textContent = cleanDigits;
+        
+        if (cleanDigits !== lastToken) {
+          sendToSheets(cleanDigits);
+        } else {
+          statusLabel.textContent = "Token sama terdeteksi (skip)";
+        }
+      } else {
+        statusLabel.textContent = "Mencoba membaca...";
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      isProcessing = false;
+    }
+  }
+
+  async function sendToSheets(token) {
+    statusLabel.textContent = "Mengirim " + token + "...";
+    try {
+      const response = await fetch(CONFIG.gasUrl, {
+        method: "POST",
+        mode: "no-cors", // Penting untuk menghindari error CORS pada GAS
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "token=" + token
+      });
+      
+      lastToken = token;
+      statusLabel.textContent = "BERHASIL DIKIRIM: " + token;
+      
+      // Haptic feedback jika di HP
+      if (navigator.vibrate) navigator.vibrate(100);
+      
+    } catch (err) {
+      statusLabel.textContent = "Gagal kirim data.";
+    }
+  }
+
+  document.getElementById('btnStart').addEventListener('click', initCamera);
+  document.getElementById('btnStop').addEventListener('click', stopCamera);
+
+</script>
 </body>
 </html>
